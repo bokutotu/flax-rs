@@ -1,3 +1,6 @@
+fn main() {
+    println!("Oppai");
+}
 // use std::fs::read_to_string;
 // use std::iter::Iterator;
 // use std::path::{Path, PathBuf};
