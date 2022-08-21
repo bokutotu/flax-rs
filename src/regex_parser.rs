@@ -361,8 +361,8 @@ impl RepConfig {
         if min == max {
             return nfa;
         }
-        let rep_start_idx = min * base_len;
-        let rep_end_idx = max * base_len;
+        let rep_start_idx = min * base_len - 1;
+        let rep_end_idx = (max + 1) * base_len - 1;
         nfa[rep_start_idx].add_epsilon(rep_end_idx);
         nfa
     }
@@ -495,12 +495,17 @@ fn test_rep() {
     use crate::nfa::search;
     #[derive(Clone, Debug, PartialEq, Eq, Copy)]
     struct TermianalMarker;
-    let regex_string = "a{2,5}".to_string();
+    let regex_string = "a{1,3}".to_string();
     let regex = Regex::new(regex_string);
     let mut regex_iter = regex.tokens_iter();
     let mut nfa = rep(&mut regex_iter).unwrap();
     nfa.set_termial_to_last_node(TermianalMarker);
-    let query_string = "aaaaa";
-    let res = search(&nfa, query_string);
+    let res = search(&nfa, "a");
     assert_eq!(TermianalMarker, res[0]);
+    let res = search(&nfa, "aa");
+    assert_eq!(TermianalMarker, res[0]);
+    // let res = search(&nfa, "aaa");
+    // assert_eq!(TermianalMarker, res[0]);
+    // let res = search(&nfa, "aaaa");
+    // assert_eq!(0, res.len());
 }

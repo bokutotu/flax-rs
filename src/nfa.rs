@@ -10,9 +10,9 @@ pub enum NfaItem<C, T> {
 }
 
 impl<C, T> NfaItem<C, T> {
-    // fn is_epsilon(&self) -> bool {
-    //     matches!(self, NfaItem::Epsilon)
-    // }
+    fn is_epsilon(&self) -> bool {
+        matches!(self, NfaItem::Epsilon)
+    }
     //
     // fn is_content(&self) -> bool {
     //     matches!(self, NfaItem::Content(_))
@@ -33,6 +33,11 @@ pub struct Node<C, T> {
 }
 
 impl<C, T: Clone> Node<C, T> {
+    fn new() -> Self {
+        Self {
+            directions: Vec::new(),
+        }
+    }
     fn add_direction(&mut self, dir_char: NfaItem<C, T>, idx: usize) {
         self.directions.push((dir_char, idx));
     }
@@ -79,9 +84,10 @@ impl<C: Clone, T: Clone> Nfa<C, T> {
 
     pub fn from_content(content: C) -> Self {
         let node = Node::from_content(content);
+        let null_node = Node::new();
         Nfa {
-            nfa: vec![node],
-            len: 1,
+            nfa: vec![node, null_node],
+            len: 2,
         }
     }
 
@@ -139,8 +145,6 @@ impl<C: Clone, T: Clone> Nfa<C, T> {
     }
 
     pub fn set_termial_to_last_node(&mut self, terminal: T) {
-        let terminal_node = Node { directions: vec![] };
-        self.push(terminal_node);
         let last_idx = self.len() - 1;
         self.set_termial_to_idx(last_idx, terminal);
     }
@@ -154,50 +158,52 @@ impl<C: Clone, T: Clone> Default for Nfa<C, T> {
 
 fn search_inner<C, T>(nfa: &Nfa<C, T>, search_char_vec: &[char], idx: usize) -> Vec<T>
 where
-    C: PartialEq<char> + Clone,
-    T: Clone + Copy,
+    C: PartialEq<char> + Clone + Debug,
+    T: Clone + Copy + Debug,
 {
     let mut res = Vec::new();
     if search_char_vec.is_empty() {
-        return nfa[idx]
+        for (item, idx) in nfa[idx]
             .directions
             .iter()
-            .filter(|(item, _)| item.is_terminal())
-            .map(|(item, _)| {
-                if let NfaItem::Terminal(x) = item {
-                    return *x;
-                }
-                unreachable!()
-            })
-            .collect::<Vec<T>>();
-    }
-
-    let tmp_char = search_char_vec[0];
-    let next_search_char_vec = &search_char_vec[1..];
-
-    nfa[idx]
-        .directions
-        .iter()
-        .for_each(|(item, idx)| match item {
-            NfaItem::Terminal(x) => res.push(*x),
-            NfaItem::Epsilon => {
-                let mut tmp = search_inner(nfa, search_char_vec, *idx);
-                res.append(&mut tmp);
-            }
-            NfaItem::Content(x) => {
-                if *x == tmp_char {
-                    let mut tmp = search_inner(nfa, next_search_char_vec, *idx);
+            .filter(|(item, _)| item.is_terminal() | item.is_epsilon())
+        {
+            match item {
+                NfaItem::Terminal(x) => res.push(*x),
+                NfaItem::Epsilon => {
+                    let mut tmp = search_inner(nfa, search_char_vec, *idx);
                     res.append(&mut tmp);
                 }
+                _ => unreachable!(),
             }
-        });
+        }
+    } else {
+        let tmp_char = search_char_vec[0];
+        let next_search_char_vec = &search_char_vec[1..];
 
+        nfa[idx]
+            .directions
+            .iter()
+            .for_each(|(item, idx)| match item {
+                NfaItem::Terminal(x) => res.push(*x),
+                NfaItem::Epsilon => {
+                    let mut tmp = search_inner(nfa, search_char_vec, *idx);
+                    res.append(&mut tmp);
+                }
+                NfaItem::Content(x) => {
+                    if *x == tmp_char {
+                        let mut tmp = search_inner(nfa, next_search_char_vec, *idx);
+                        res.append(&mut tmp);
+                    }
+                }
+            });
+    }
     res
 }
 
 pub fn search<C, T>(nfa: &Nfa<C, T>, search_string: &str) -> Vec<T>
 where
-    C: PartialEq<char> + Clone,
+    C: PartialEq<char> + Clone + Debug,
     T: Copy + Debug,
 {
     let search_char_vec: Vec<char> = search_string.chars().collect::<Vec<_>>();
@@ -341,5 +347,26 @@ mod nfa_trasition_test {
         let nfa = construct_nfa();
         let res = search::<char, Terminal>(&nfa, "rust");
         assert_eq!(vec![Terminal::Rust], res);
+    }
+
+    #[test]
+    fn test_ruby_string() {
+        let nfa = construct_nfa();
+        let res = search::<char, Terminal>(&nfa, "ruby");
+        assert_eq!(res, vec![Terminal::Ruby])
+    }
+
+    #[test]
+    fn test_cxx_string() {
+        let nfa = construct_nfa();
+        let res = search(&nfa, "cxx");
+        assert_eq!(res, vec![Terminal::CXX]);
+    }
+
+    #[test]
+    fn test_zig_string() {
+        let nfa = construct_nfa();
+        let res = search(&nfa, "zig");
+        assert_eq!(res, vec![Terminal::Zig]);
     }
 }
