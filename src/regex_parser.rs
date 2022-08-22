@@ -210,6 +210,7 @@ fn try_special_char(char: char) -> Option<Item> {
     }
 }
 
+#[derive(Debug)]
 pub struct RegexTokenIter {
     item: Vec<char>,
     idx: usize,
@@ -284,6 +285,24 @@ fn test_back() {
 }
 
 #[test]
+fn test_rep_regex() {
+    let regex_string = "(abc){2,3}".to_string();
+    let regex = Regex::new(regex_string);
+    let mut regex_iter = regex.tokens_iter();
+    assert_eq!(Item::BracketL, regex_iter.next().unwrap());
+    assert_eq!(Item::Char('a'), regex_iter.next().unwrap());
+    assert_eq!(Item::Char('b'), regex_iter.next().unwrap());
+    assert_eq!(Item::Char('c'), regex_iter.next().unwrap());
+    assert_eq!(Item::BracketR, regex_iter.next().unwrap());
+    assert_eq!(Item::CurryL, regex_iter.next().unwrap());
+    assert_eq!(Item::Digit(2), regex_iter.next().unwrap());
+    assert_eq!(Item::Char(','), regex_iter.next().unwrap());
+    assert_eq!(Item::Digit(3), regex_iter.next().unwrap());
+    assert_eq!(Item::CurryR, regex_iter.next().unwrap());
+    assert_eq!(None, regex_iter.next());
+}
+
+#[test]
 fn test_baskslash() {
     let regex_string = r"\d".to_string();
     let regex = Regex::new(regex_string);
@@ -303,7 +322,7 @@ pub fn items<T: Clone>(iter: &mut RegexTokenIter) -> Option<Nfa<Item, T>> {
     let mut first = rep(iter)?;
     match items(iter) {
         Some(second) => {
-            let first_len = first.len();
+            let first_len = first.len() - 1;
             first.concat(first_len, second);
             Some(first)
         }
@@ -372,10 +391,7 @@ impl RepConfig {
 
 fn parse_rep(iter: &mut RegexTokenIter) -> Option<RepConfig> {
     match iter.next() {
-        None => {
-            iter.back();
-            None
-        }
+        None => None,
         // +
         Some(Item::OneOrMore) => Some(RepConfig::new(1, None)),
         // *
@@ -425,19 +441,23 @@ fn parse_rep(iter: &mut RegexTokenIter) -> Option<RepConfig> {
 
 fn rep<T: Clone>(iter: &mut RegexTokenIter) -> Option<Nfa<Item, T>> {
     let item = item(iter)?;
-    let rep = parse_rep(iter)?;
-    Some(rep.nfa(item))
+    match parse_rep(iter) {
+        Some(rep) => Some(rep.nfa(item)),
+        None => Some(item),
+    }
 }
 
 fn item<T: Clone>(iter: &mut RegexTokenIter) -> Option<Nfa<Item, T>> {
+    println!("{:?}", iter);
     match iter.next() {
-        None | Some(Item::CurryR) => None,
-        Some(Item::CurryL) => {
-            let items = items(iter);
-            match iter.next() {
-                Some(Item::CurryR) => items,
-                _ => unreachable!(),
-            }
+        None | Some(Item::BracketR) => None,
+        Some(Item::BracketL) => {
+            items(iter)
+            // let items = items(iter);
+            // match iter.next() {
+            //     Some(Item::BracketR) => items,
+            //     _ => unreachable!(),
+            // }
         }
         Some(x) => Some(Nfa::<Item, T>::from_content(x)),
     }
@@ -502,12 +522,13 @@ fn test_rep_min_max() {
     let mut regex_iter = regex.tokens_iter();
     let mut nfa = rep(&mut regex_iter).unwrap();
     nfa.set_termial_to_last_node(TermianalMarker);
-    println!("{:?}", nfa);
     let res = search(&nfa, "a");
     assert_eq!(vec![TermianalMarker], res);
     let res = search(&nfa, "aa");
     assert_eq!(vec![TermianalMarker, TermianalMarker], res);
     let res = search(&nfa, "aaa");
+    assert_eq!(vec![TermianalMarker, TermianalMarker, TermianalMarker], res);
+    let res = search(&nfa, "aaaa");
     assert_eq!(vec![TermianalMarker, TermianalMarker, TermianalMarker], res);
 }
 
@@ -525,4 +546,46 @@ fn test_rep_spcific_rep() {
     assert_eq!(0, res.len());
     let res = search(&nfa, "aa");
     assert_eq!(vec![TerminalMarker], res);
+}
+
+#[should_panic]
+#[test]
+fn test_items_null() {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct TermianalMarker;
+    let regex_string = "".to_string();
+    let regex = Regex::new(regex_string);
+    let mut regex_iter = regex.tokens_iter();
+    let _ = items::<TermianalMarker>(&mut regex_iter).unwrap();
+}
+
+#[test]
+fn test_items_multi_char() {
+    use crate::nfa::search;
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct TermianalMarker;
+    let regex_string = "abc".to_string();
+    let regex = Regex::new(regex_string);
+    let mut regex_iter = regex.tokens_iter();
+    let mut nfa = items(&mut regex_iter).unwrap();
+    nfa.set_termial_to_last_node(TermianalMarker);
+    let res = search(&nfa, "abc");
+    assert_eq!(vec![TermianalMarker], res);
+}
+
+#[test]
+fn test_items_nulti_char_rep() {
+    use crate::nfa::search;
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct TermianalMarker;
+    let regex_string = "(abc){2,3}".to_string();
+    let regex = Regex::new(regex_string);
+    let mut regex_iter = regex.tokens_iter();
+    let mut nfa = items(&mut regex_iter).unwrap();
+    nfa.set_termial_to_last_node(TermianalMarker);
+    println!("{:?}", nfa);
+    let res = search(&nfa, "abcabcabc");
+    assert_eq!(vec![TermianalMarker, TermianalMarker], res);
+    let res = search(&nfa, "abcabcabcabc");
+    assert_eq!(vec![TermianalMarker, TermianalMarker], res);
 }
