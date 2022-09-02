@@ -642,6 +642,54 @@ fn concat_tail_n_times() {
     assert_eq!(ans, res);
 }
 
+#[test]
+fn next_node_without_epsilon() {
+    mock_struct!();
+    let mut automaton = NFA::new();
+    let mut node = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
+    node.add_content(Item::Char('b'), 100);
+    node.add_content(Item::Char('a'), 200);
+    automaton.push(node);
+    let res = automaton.next_node(0, 'a');
+    let ans = vec![1, 200];
+    assert_eq!(res, ans);
+}
+
+#[test]
+fn next_node_with_exception() {
+    mock_struct!();
+    let mut automaton = NFA::new();
+    let mut node_0 = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
+    node_0.add_epsilon(2);
+    let node_1 = NfaNode::<TestTerminal, Item>::default();
+    let node_2 = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 2000);
+    automaton.push(node_0);
+    automaton.push(node_1);
+    automaton.push(node_2);
+    let mut res = automaton.next_node(0, 'a');
+    let mut ans = vec![1, 2000];
+    res.sort();
+    ans.sort();
+    assert_eq!(ans, res);
+}
+
+#[test]
+fn next_node_loooooong_epsilon() {
+    mock_struct!();
+    let mut automaton = NFA::new();
+    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(1));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(3));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(4));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(5));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('a'),
+        6,
+    ));
+    let res = automaton.next_node(0, 'a');
+    let ans = vec![6];
+    assert_eq!(res, ans);
+}
 // #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 // pub enum NfaItem<C, T> {
 //     Epsilon,
