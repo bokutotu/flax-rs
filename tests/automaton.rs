@@ -17,6 +17,7 @@ fn from_content() {
     let mut node = NfaNode::default();
     node.add_transition(content, 1);
     ans.push(node);
+    ans.push(NfaNode::default());
     let res = NFA::from_content(Item::Char('a'));
     assert_eq!(ans, res);
 }

@@ -84,6 +84,14 @@ impl<N: Node> Automaton<N> {
         let node = N::from_content(content, 1);
         let mut automata = Self::new();
         automata.push(node);
+        automata.push(N::default());
+        automata
+    }
+
+    pub fn from_terminal(terminal: <N::NodeState as State>::Terminal) -> Self {
+        let node = N::from_terminal(terminal);
+        let mut automata = Self::new();
+        automata.push(node);
         automata
     }
 
@@ -113,6 +121,9 @@ impl<N: Node> Automaton<N> {
         idx: usize,
         terminal: <N::NodeState as State>::Terminal,
     ) {
+        if self.len() == 0 {
+            panic!("automaton length 0 so, You cannot call add_terminal_idx_node");
+        }
         self.nodes[idx].add_terminal(terminal);
     }
 

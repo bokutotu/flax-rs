@@ -186,12 +186,14 @@ impl<T: Terminal, C: Content> NextNode for NFA<T, C> {
 
 impl<T: Terminal, C: Content> RegexRun<NfaNode<T, C>> for NFA<T, C> {}
 
+#[allow(unused_macros)]
 macro_rules! mock_struct {
     () => {
         use crate::regex_parser::Item;
         #[derive(Debug, Clone, Copy, PartialEq)]
         struct TestTerminal;
         impl Terminal for TestTerminal {}
+        #[allow(dead_code)]
         type NfaTestState = NfaState<TestTerminal, Item>;
     };
 }
@@ -493,8 +495,28 @@ fn automaton_from_content() {
     let node_1 = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
     let mut nfa = NFA::default();
     nfa.push(node_1);
+    nfa.push(NfaNode::default());
     let ans = NFA::from_content(Item::Char('a'));
     assert_eq!(ans, nfa);
+}
+
+#[test]
+fn concat() {
+    mock_struct!();
+    let content_a = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
+    let mut epsilon = NfaNode::<TestTerminal, Item>::default();
+    epsilon.add_epsilon(2);
+    let terminal = NfaNode::<TestTerminal, Item>::from_terminal(TestTerminal);
+    let mut nfa_1 = NFA::from_content(Item::Char('a'));
+    let mut nfa_2 = NFA::new();
+    nfa_2.push(terminal.clone());
+    nfa_1.concat(1, nfa_2);
+    let mut ans = NFA::new();
+    ans.push(content_a);
+    ans.push(epsilon);
+    ans.push(terminal);
+
+    assert_eq!(ans, nfa_1)
 }
 
 // #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
