@@ -120,6 +120,13 @@ impl<T: Terminal, C: Content> NfaNode<T, C> {
 }
 
 impl<T: Terminal, C: Content> NfaNode<T, C> {
+    pub fn from_epsilon(idx: usize) -> Self {
+        let state = NfaState::from_epsilon();
+        let mut default = Self::default();
+        default.add_transition(state, idx);
+        default
+    }
+
     pub fn add_epsilon(&mut self, idx: usize) {
         let epsion = NfaState::default();
         self.add_transition(epsion, idx);
@@ -150,13 +157,13 @@ impl<T: Terminal, C: Content> NFA<T, C> {
     /// 4. update length of NFA
     pub fn concat(&mut self, source_idx: usize, cat_nfa: NFA<T, C>) {
         let current_len = self.len();
-        let cat_nfa = cat_nfa.increment_all_index(current_len - 1);
+        let cat_nfa = cat_nfa.increment_all_index(current_len);
         self.add_epsilon_idx_node(source_idx, current_len);
         self.append_vec(cat_nfa);
     }
 
     pub fn concat_tail(&mut self, cat_nfa: NFA<T, C>) {
-        let current_len = self.len();
+        let current_len = self.len() - 1;
         self.concat(current_len, cat_nfa);
     }
 
@@ -503,20 +510,136 @@ fn automaton_from_content() {
 #[test]
 fn concat() {
     mock_struct!();
-    let content_a = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
-    let mut epsilon = NfaNode::<TestTerminal, Item>::default();
-    epsilon.add_epsilon(2);
-    let terminal = NfaNode::<TestTerminal, Item>::from_terminal(TestTerminal);
-    let mut nfa_1 = NFA::from_content(Item::Char('a'));
-    let mut nfa_2 = NFA::new();
-    nfa_2.push(terminal.clone());
-    nfa_1.concat(1, nfa_2);
-    let mut ans = NFA::new();
-    ans.push(content_a);
-    ans.push(epsilon);
-    ans.push(terminal);
+    let mut res = NFA::<TestTerminal, Item>::from_content(Item::Char('a'));
+    let b = NFA::<TestTerminal, Item>::from_content(Item::Char('b'));
+    res.concat(1, b);
 
-    assert_eq!(ans, nfa_1)
+    let mut ans = NFA::new();
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('a'),
+        1,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('b'),
+        3,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::default());
+    assert_eq!(res, ans);
+}
+
+#[test]
+fn concat_first_node() {
+    mock_struct!();
+    let mut res = NFA::new();
+    res.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('a'),
+        1,
+    ));
+    res.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
+    res.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('b'),
+        3,
+    ));
+    res.push(NfaNode::<TestTerminal, Item>::from_epsilon(4));
+    res.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('c'),
+        5,
+    ));
+    res.push(NfaNode::<TestTerminal, Item>::from_terminal(TestTerminal));
+    let concat_nfa = NFA::from_content(Item::Char('d'));
+    res.concat(0, concat_nfa);
+    let mut first_node = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
+    first_node.add_epsilon(6);
+    let mut ans = NFA::new();
+    ans.push(first_node);
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('b'),
+        3,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(4));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('c'),
+        5,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_terminal(TestTerminal));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('d'),
+        7,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::default());
+    assert_eq!(ans, res);
+}
+
+#[test]
+fn concat_tail() {
+    mock_struct!();
+    let mut res = NFA::<TestTerminal, Item>::from_content(Item::Char('a'));
+    let node_b = NFA::<TestTerminal, Item>::from_content(Item::Char('b'));
+    res.concat(1, node_b);
+    let condcat_nfa = NFA::<TestTerminal, Item>::from_content(Item::Char('c'));
+    res.concat_tail(condcat_nfa.clone());
+    res.concat_tail(condcat_nfa.clone());
+
+    let mut ans = NFA::new();
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('a'),
+        1,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('b'),
+        3,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(4));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('c'),
+        5,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(6));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('c'),
+        7,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::default());
+    assert_eq!(ans, res);
+}
+
+#[test]
+fn concat_tail_n_times() {
+    mock_struct!();
+    let mut res = NFA::<TestTerminal, Item>::from_content(Item::Char('a'));
+    let node_b = NFA::<TestTerminal, Item>::from_content(Item::Char('b'));
+    res.concat_tail(node_b);
+    let concat_nfa = NFA::<TestTerminal, Item>::from_content(Item::Char('c'));
+    res.concat_tail_n_times(concat_nfa, 2);
+
+    let mut ans = NFA::new();
+
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('a'),
+        1,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('b'),
+        3,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(4));
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('c'),
+        5,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::from_epsilon(6));
+
+    ans.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('c'),
+        7,
+    ));
+    ans.push(NfaNode::<TestTerminal, Item>::default());
+
+    assert_eq!(ans, res);
 }
 
 // #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
