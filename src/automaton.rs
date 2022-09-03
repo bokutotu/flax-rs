@@ -22,6 +22,7 @@ pub trait Node: IntoIterator + Default {
     fn increment_all_index(&mut self, inc: usize);
     fn collect_terminal(&self) -> Vec<<Self::NodeState as State>::Terminal>;
     fn collect_content(&self) -> Vec<(<Self::NodeState as State>::Content, usize)>;
+
     fn collect_char_content_idx(&self, char_: char) -> Vec<usize> {
         self.collect_content()
             .iter()
@@ -162,18 +163,21 @@ pub trait RegexRun<N: Node>: NextNode + Index<usize, Output = N> {
         char_vec: &[char],
         idx: usize,
     ) -> Vec<<<N as Node>::NodeState as State>::Terminal> {
-        let mut res = Vec::new();
+        println!("{:?}", idx);
+        println!("{:?}", char_vec);
         let mut terminals = self[idx].collect_terminal();
         if !char_vec.is_empty() {
+            println!("{:?}", self.next_node(idx, char_vec[0]));
             self.next_node(idx, char_vec[0])
                 .iter()
                 .for_each(|next_idx| {
-                    res.append(&mut terminals);
-                    let mut next_char_res = self.run_inner(&char_vec[1..], *next_idx);
-                    res.append(&mut next_char_res);
+                    if *next_idx != 0 {
+                        let mut next_char_res = self.run_inner(&char_vec[1..], *next_idx);
+                        terminals.append(&mut next_char_res);
+                    }
                 });
         }
-        res
+        terminals
     }
 
     fn run(&self, search_string: &str) -> Vec<<<N as Node>::NodeState as State>::Terminal> {

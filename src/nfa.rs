@@ -109,15 +109,15 @@ impl<T: Terminal, C: Content> Node for NfaNode<T, C> {
     }
 }
 
-impl<T: Terminal, C: Content> NfaNode<T, C> {
-    fn collect_epsilon_idx(&self) -> Vec<usize> {
-        self.states
-            .iter()
-            .filter(|(state, _)| state.is_epsilon())
-            .map(|(_, idx)| *idx)
-            .collect()
-    }
-}
+// impl<T: Terminal, C: Content> NfaNode<T, C> {
+//     fn collect_epsilon_idx(&self) -> Vec<usize> {
+//         self.states
+//             .iter()
+//             .filter(|(state, _)| state.is_epsilon())
+//             .map(|(_, idx)| *idx)
+//             .collect()
+//     }
+// }
 
 impl<T: Terminal, C: Content> NfaNode<T, C> {
     pub fn from_epsilon(idx: usize) -> Self {
@@ -177,22 +177,28 @@ impl<T: Terminal, C: Content> NFA<T, C> {
 impl<T: Terminal, C: Content> NextNode for NFA<T, C> {
     type InputState = NfaState<T, C>;
     fn next_node(&self, idx: usize, char_: char) -> Vec<usize> {
-        let mut res = Vec::new();
-        let mut content_vec = self[idx].collect_char_content_idx(char_);
         self[idx]
-            .collect_epsilon_idx()
-            .iter()
-            .for_each(|epsilon_idx| {
-                let mut tmp = self.next_node(*epsilon_idx, char_);
-                res.append(&mut tmp);
-            });
-        res.append(&mut content_vec);
-        res
+            .clone()
+            .into_iter()
+            .filter(|(state, _)| !(state.is_content() && state.content() != char_))
+            .map(|(_, idx_)| idx_)
+            .collect()
     }
 }
 
 impl<T: Terminal, C: Content> RegexRun<NfaNode<T, C>> for NFA<T, C> {}
 
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// ----------------------------------
+// test
 #[allow(unused_macros)]
 macro_rules! mock_struct {
     () => {
@@ -662,395 +668,109 @@ fn next_node_with_exception() {
     let mut node_0 = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 1);
     node_0.add_epsilon(2);
     let node_1 = NfaNode::<TestTerminal, Item>::default();
-    let node_2 = NfaNode::<TestTerminal, Item>::from_content(Item::Char('a'), 2000);
     automaton.push(node_0);
     automaton.push(node_1);
-    automaton.push(node_2);
     let mut res = automaton.next_node(0, 'a');
-    let mut ans = vec![1, 2000];
+    let mut ans = vec![1, 2];
     res.sort();
     ans.sort();
     assert_eq!(ans, res);
 }
 
 #[test]
-fn next_node_loooooong_epsilon() {
+fn next_node_epsilon() {
     mock_struct!();
     let mut automaton = NFA::new();
     automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(1));
-    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(2));
-    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(3));
-    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(4));
-    automaton.push(NfaNode::<TestTerminal, Item>::from_epsilon(5));
     automaton.push(NfaNode::<TestTerminal, Item>::from_content(
         Item::Char('a'),
-        6,
+        2,
     ));
     let res = automaton.next_node(0, 'a');
-    let ans = vec![6];
+    let ans = vec![1];
     assert_eq!(res, ans);
 }
-// #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
-// pub enum NfaItem<C, T> {
-//     Epsilon,
-//     Content(C),
-//     Terminal(T),
-// }
-//
-// impl<C, T> NfaItem<C, T> {
-//     fn is_epsilon(&self) -> bool {
-//         matches!(self, NfaItem::Epsilon)
-//     }
-//
-//     fn is_terminal(&self) -> bool {
-//         matches!(self, NfaItem::Terminal(_))
-//     }
-//
-//     fn from_content(content: C) -> Self {
-//         NfaItem::Content(content)
-//     }
-// }
-//
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// pub struct NfaNode<C, T> {
-//     directions: Vec<(NfaItem<C, T>, usize)>,
-// }
-//
-// impl<C, T: Clone> NfaNode<C, T> {
-//     fn new() -> Self {
-//         Self {
-//             directions: Vec::new(),
-//         }
-//     }
-//     fn add_direction(&mut self, dir_char: NfaItem<C, T>, idx: usize) {
-//         self.directions.push((dir_char, idx));
-//     }
-//
-//     pub fn add_content(&mut self, content: C, idx: usize) {
-//         let item = NfaItem::Content(content);
-//         self.add_direction(item, idx);
-//     }
-//
-//     pub fn add_terminal(&mut self, terminal: T) {
-//         let item = NfaItem::Terminal(terminal);
-//         self.add_direction(item, 0);
-//     }
-//
-//     pub fn add_epsilon(&mut self, idx: usize) {
-//         self.add_direction(NfaItem::Epsilon, idx);
-//     }
-//
-//     fn increment_all_index(&mut self, inc: usize) {
-//         self.directions.iter_mut().for_each(|(_, idx)| *idx += inc);
-//     }
-//
-//     fn from_content(content: C) -> Self {
-//         let item = NfaItem::from_content(content);
-//         NfaNode {
-//             directions: vec![(item, 1)],
-//         }
-//     }
-// }
-//
-// #[derive(Clone, PartialEq, Eq, Debug)]
-// pub struct Nfa<C, T> {
-//     nfa: Vec<NfaNode<C, T>>,
-//     len: usize,
-// }
-//
-// impl<C: Clone, T: Clone> Nfa<C, T> {
-//     pub fn new() -> Self {
-//         Nfa {
-//             nfa: Vec::new(),
-//             len: 0,
-//         }
-//     }
-//
-//     pub fn from_content(content: C) -> Self {
-//         let node = NfaNode::from_content(content);
-//         let null_node = NfaNode::new();
-//         Nfa {
-//             nfa: vec![node, null_node],
-//             len: 2,
-//         }
-//     }
-//
-//     pub fn push(&mut self, node: NfaNode<C, T>) {
-//         self.nfa.push(node);
-//     }
-//
-//     fn increment_all_node_idx(self, inc: usize) -> Nfa<C, T> {
-//         let mut new = self;
-//         new.nfa
-//             .iter_mut()
-//             .for_each(|node| node.increment_all_index(inc));
-//         new
-//     }
-//
-//     fn clone_vec(&self) -> Vec<NfaNode<C, T>> {
-//         self.nfa.clone()
-//     }
-//
-//     fn update_len(&mut self) {
-//         self.len = self.nfa.len();
-//     }
-//
-//     pub(crate) fn len(&self) -> usize {
-//         self.nfa.len()
-//     }
-//
-//     /// Connect another Node's NFA to any NFA node.
-//     /// 1. add all the idx of the nfa to be connected by the original length
-//     /// 2. update the length of the original nfa
-//     /// 3. connect the first index of the nfa to the node to be connected with
-//     ///    an arbitrary NfaItem
-//     /// 4. update length of NFA
-//     pub fn concat(&mut self, source_idx: usize, cat_nfa: Nfa<C, T>) {
-//         let cat_nfa = cat_nfa.increment_all_node_idx(self.len());
-//         let mut cat_nfa_vec = cat_nfa.clone_vec();
-//         self.nfa[source_idx].add_epsilon(self.len);
-//         self.nfa.append(&mut cat_nfa_vec);
-//         self.update_len();
-//     }
-//
-//     pub fn concat_tail(&mut self, cat_nfa: Nfa<C, T>) {
-//         let len = self.len();
-//         self.concat(len - 1, cat_nfa);
-//     }
-//
-//     pub fn concat_tail_n_time(&mut self, cat_nfa: Nfa<C, T>, times: usize) {
-//         for _ in 0..times {
-//             self.concat_tail(cat_nfa.clone());
-//         }
-//     }
-//
-//     pub fn set_termial_to_idx(&mut self, idx: usize, terminal: T) {
-//         self.index_mut(idx).add_terminal(terminal);
-//     }
-//
-//     pub fn set_termial_to_last_node(&mut self, terminal: T) {
-//         let last_idx = self.len() - 1;
-//         self.set_termial_to_idx(last_idx, terminal);
-//     }
-// }
-//
-// impl<C: Clone, T: Clone> Default for Nfa<C, T> {
-//     fn default() -> Self {
-//         Self::new()
-//     }
-// }
-//
-// fn search_inner<C, T>(nfa: &Nfa<C, T>, search_char_vec: &[char], idx: usize) -> Vec<T>
-// where
-//     C: PartialEq<char> + Clone + Debug,
-//     T: Clone + Copy + Debug,
-// {
-//     let mut res = Vec::new();
-//     if search_char_vec.is_empty() {
-//         for (item, idx) in nfa[idx]
-//             .directions
-//             .iter()
-//             .filter(|(item, _)| item.is_terminal() | item.is_epsilon())
-//         {
-//             match item {
-//                 NfaItem::Terminal(x) => res.push(*x),
-//                 NfaItem::Epsilon => {
-//                     let mut tmp = search_inner(nfa, search_char_vec, *idx);
-//                     res.append(&mut tmp);
-//                 }
-//                 _ => unreachable!(),
-//             }
-//         }
-//     } else {
-//         let tmp_char = search_char_vec[0];
-//         let next_search_char_vec = &search_char_vec[1..];
-//
-//         nfa[idx]
-//             .directions
-//             .iter()
-//             .for_each(|(item, idx)| match item {
-//                 NfaItem::Terminal(x) => res.push(*x),
-//                 NfaItem::Epsilon => {
-//                     let mut tmp = search_inner(nfa, search_char_vec, *idx);
-//                     res.append(&mut tmp);
-//                 }
-//                 NfaItem::Content(x) => {
-//                     if *x == tmp_char {
-//                         let mut tmp = search_inner(nfa, next_search_char_vec, *idx);
-//                         res.append(&mut tmp);
-//                     }
-//                 }
-//             });
-//     }
-//     res
-// }
-//
-// pub fn search<C, T>(nfa: &Nfa<C, T>, search_string: &str) -> Vec<T>
-// where
-//     C: PartialEq<char> + Clone + Debug,
-//     T: Copy + Debug,
-// {
-//     let search_char_vec: Vec<char> = search_string.chars().collect::<Vec<_>>();
-//     search_inner(nfa, &search_char_vec, 0)
-// }
-//
-// impl<C, T> Index<usize> for Nfa<C, T> {
-//     type Output = NfaNode<C, T>;
-//
-//     fn index(&self, index: usize) -> &Self::Output {
-//         &self.nfa[index]
-//     }
-// }
-//
-// impl<C, T> IndexMut<usize> for Nfa<C, T> {
-//     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-//         &mut self.nfa[index]
-//     }
-// }
-//
-// impl<'a, C, T> Index<usize> for &'a Nfa<C, T> {
-//     type Output = NfaNode<C, T>;
-//
-//     fn index(&self, index: usize) -> &Self::Output {
-//         &self.nfa[index]
-//     }
-// }
-//
-// impl<'a, C, T> Index<usize> for &'a mut Nfa<C, T> {
-//     type Output = NfaNode<C, T>;
-//
-//     fn index(&self, index: usize) -> &Self::Output {
-//         &self.nfa[index]
-//     }
-// }
-//
-// impl<'a, C, T> IndexMut<usize> for &'a mut Nfa<C, T> {
-//     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-//         &mut self.nfa[index]
-//     }
-// }
-//
-// #[cfg(test)]
-// mod nfa_trasition_test {
-//     use crate::nfa::{search, Nfa, NfaItem, NfaNode};
-//
-//     impl<C, T> Nfa<C, T> {
-//         fn from_vec(nfa: Vec<NfaNode<C, T>>) -> Self {
-//             let len = nfa.len();
-//             Self { nfa, len }
-//         }
-//     }
-//
-//     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-//     enum Terminal {
-//         Rust,
-//         Zig,
-//         Ruby,
-//         CXX,
-//     }
-//
-//     fn construct_nfa() -> Nfa<char, Terminal> {
-//         // rust nfa
-//         let first = NfaNode {
-//             directions: vec![(NfaItem::Epsilon, 1)],
-//         };
-//         let r = NfaNode {
-//             directions: vec![(NfaItem::Content('r'), 2)],
-//         };
-//         let u = NfaNode {
-//             directions: vec![(NfaItem::Content('u'), 3)],
-//         };
-//         let s = NfaNode {
-//             directions: vec![(NfaItem::Content('s'), 4)],
-//         };
-//         let t = NfaNode {
-//             directions: vec![(NfaItem::Content('t'), 5)],
-//         };
-//         let terminal = NfaNode {
-//             directions: vec![(NfaItem::Terminal(Terminal::Rust), 0)],
-//         };
-//         let mut rust_nfa = Nfa::from_vec(vec![first, r, u, s, t, terminal]);
-//
-//         // ruby nfa
-//         let r = NfaNode {
-//             directions: vec![(NfaItem::Content('r'), 1)],
-//         };
-//         let u = NfaNode {
-//             directions: vec![(NfaItem::Content('u'), 2)],
-//         };
-//         let b = NfaNode {
-//             directions: vec![(NfaItem::Content('b'), 3)],
-//         };
-//         let y = NfaNode {
-//             directions: vec![(NfaItem::Content('y'), 4)],
-//         };
-//         let terminal = NfaNode {
-//             directions: vec![(NfaItem::Terminal(Terminal::Ruby), 0)],
-//         };
-//         let ruby_nfa = Nfa::from_vec(vec![r, u, b, y, terminal]);
-//
-//         // zig nfa
-//         let z = NfaNode {
-//             directions: vec![(NfaItem::Content('z'), 1)],
-//         };
-//         let i = NfaNode {
-//             directions: vec![(NfaItem::Content('i'), 2)],
-//         };
-//         let g = NfaNode {
-//             directions: vec![(NfaItem::Content('g'), 3)],
-//         };
-//         let terminal = NfaNode {
-//             directions: vec![(NfaItem::Terminal(Terminal::Zig), 0)],
-//         };
-//         let zig_nfa = Nfa::from_vec(vec![z, i, g, terminal]);
-//
-//         // cxx nfa
-//         let c = NfaNode {
-//             directions: vec![(NfaItem::Content('c'), 1)],
-//         };
-//         let x_1 = NfaNode {
-//             directions: vec![(NfaItem::Content('x'), 2)],
-//         };
-//         let x_2 = NfaNode {
-//             directions: vec![(NfaItem::Content('x'), 3)],
-//         };
-//         let terminal = NfaNode {
-//             directions: vec![(NfaItem::Terminal(Terminal::CXX), 0)],
-//         };
-//         let cxx_nfa = Nfa::from_vec(vec![c, x_1, x_2, terminal]);
-//
-//         rust_nfa.concat(0, ruby_nfa);
-//         rust_nfa.concat(0, zig_nfa);
-//         rust_nfa.concat(0, cxx_nfa);
-//
-//         rust_nfa
-//     }
-//
-//     #[test]
-//     fn test_rust_string() {
-//         let nfa = construct_nfa();
-//         let res = search::<char, Terminal>(&nfa, "rust");
-//         assert_eq!(vec![Terminal::Rust], res);
-//     }
-//
-//     #[test]
-//     fn test_ruby_string() {
-//         let nfa = construct_nfa();
-//         let res = search::<char, Terminal>(&nfa, "ruby");
-//         assert_eq!(res, vec![Terminal::Ruby])
-//     }
-//
-//     #[test]
-//     fn test_cxx_string() {
-//         let nfa = construct_nfa();
-//         let res = search(&nfa, "cxx");
-//         assert_eq!(res, vec![Terminal::CXX]);
-//     }
-//
-//     #[test]
-//     fn test_zig_string() {
-//         let nfa = construct_nfa();
-//         let res = search(&nfa, "zig");
-//         assert_eq!(res, vec![Terminal::Zig]);
-//     }
-// }
+
+#[test]
+fn next_node_terminal_content() {
+    mock_struct!();
+    let mut automaton = NFA::new();
+    let mut node_0 = NfaNode::from_epsilon(2);
+    node_0.add_content(Item::Char('a'), 1);
+    let node_1 = NfaNode::default();
+    let node_2 = NfaNode::from_terminal(TestTerminal);
+    automaton.push(node_0);
+    automaton.push(node_1);
+    automaton.push(node_2);
+    let mut res = automaton.next_node(0, 'a');
+    println!("{:?}", automaton);
+    let mut ans = vec![1, 2];
+    res.sort();
+    ans.sort();
+    assert_eq!(ans, res);
+}
+
+#[test]
+fn regex_run_strait_automaton() {
+    mock_struct!();
+    let mut automaton = NFA::new();
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('r'),
+        1,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('u'),
+        2,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('s'),
+        3,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('t'),
+        4,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_terminal(TestTerminal));
+    let string = "rust".to_string();
+    let res = automaton.run(&string);
+    let ans = vec![TestTerminal];
+    assert_eq!(res, ans);
+}
+
+#[test]
+fn regex_run_many_path() {
+    mock_struct!();
+    let mut automaton = NFA::new();
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('r'),
+        1,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('u'),
+        2,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('s'),
+        3,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_content(
+        Item::Char('t'),
+        4,
+    ));
+    automaton.push(NfaNode::<TestTerminal, Item>::from_terminal(TestTerminal));
+    automaton.add_state_idx_node(0, NfaState::Epsilon, 4);
+    automaton.add_state_idx_node(1, NfaState::Epsilon, 4);
+    automaton.add_state_idx_node(2, NfaState::Epsilon, 4);
+    automaton.add_state_idx_node(3, NfaState::Epsilon, 4);
+    println!("{:?}", automaton);
+    let string = "rust".to_string();
+    let res = automaton.run(&string);
+    let ans = vec![
+        TestTerminal,
+        TestTerminal,
+        TestTerminal,
+        TestTerminal,
+        TestTerminal,
+    ];
+    assert_eq!(res, ans);
+}
