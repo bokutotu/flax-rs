@@ -1,7 +1,6 @@
 //! 正規表現のトークナイザー
 //! 特殊記号、数字、などを分離してトークンにする
 
-
 /// トークンの種類を表す
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Item {
@@ -144,7 +143,35 @@ impl PartialEq<Item> for char {
 
 impl From<char> for Item {
     fn from(c: char) -> Self {
-        Item::Char(c)
+        if c == '\\' {
+            Item::BackSlash
+        } else if c == '*' {
+            Item::Ast
+        } else if c == '.' {
+            Item::Dot
+        } else if c == '|' {
+            Item::Pipe
+        } else if c == '?' {
+            Item::Question
+        } else if c == '(' {
+            Item::BracketLInner
+        } else if c == ')' {
+            Item::BracketRInner
+        } else if c == '{' {
+            Item::CurryLInner
+        } else if c == '}' {
+            Item::CurryRInner
+        } else if c == '[' {
+            Item::SquareLInner
+        } else if c == ']' {
+            Item::SquareRInner
+        } else {
+            if let Some(item) = try_digit(c) {
+                item
+            } else {
+                Item::Char(c)
+            }
+        }
     }
 }
 
@@ -421,6 +448,7 @@ check_item!(@eq item_smalld, SmallD, '0',);
 check_item!(@neq item_smalld_neq, SmallD, 'a',);
 check_item!(@eq item_large_d, LargeD, 'a',);
 check_item!(@neq item_larged_neq, LargeD, '0',);
+check_item!(@eq item_backslash, BackSlash, '\\',);
 
 #[test]
 fn test_parse() {

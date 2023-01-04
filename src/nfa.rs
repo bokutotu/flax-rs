@@ -1,26 +1,25 @@
 //! NFAに関する実装
 //! このファイルでは、トークナイズ以外のNFAに関する実装を行う
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::cell::RefCell;
+use std::hash::Hash;
 use std::iter::Map;
 use std::rc::Rc;
-use std::hash::Hash;
 
 use crate::regex_tokenizer::Item;
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub enum NfaEdge
-{
+pub enum NfaEdge {
     Alphabet(Item),
-    Epsilon
+    Epsilon,
 }
 
 impl PartialEq<char> for NfaEdge {
     fn eq(&self, other: &char) -> bool {
         match self {
             NfaEdge::Epsilon => false,
-            NfaEdge::Alphabet(c) => c == other
+            NfaEdge::Alphabet(c) => c == other,
         }
     }
 }
@@ -31,42 +30,65 @@ impl PartialEq<NfaEdge> for char {
 }
 
 impl NfaEdge {
-    fn new_alphabet(c: Item) -> Self {
+    pub(crate) fn new_alphabet(c: Item) -> Self {
         NfaEdge::Alphabet(c)
     }
 
     fn new_char(c: char) -> Self {
-        Self::new_alphabet(c.into())
+        NfaEdge::Alphabet(c.into())
     }
 
-    fn new_epsilon() -> Self {
+    pub(crate) fn new_epsilon() -> Self {
         NfaEdge::Epsilon
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct NfaNode<T> 
+pub struct NfaNode<T>
 where
     T: Clone + Debug,
 {
     terminal: Option<T>,
-    child: HashMap<NfaEdge, Vec<Rc<RefCell<NfaNode<T>>>>>
+    child: HashMap<NfaEdge, Vec<Rc<RefCell<NfaNode<T>>>>>,
 }
 
-impl<T> NfaNode<T> 
+impl<T> Default for NfaNode<T> 
+where
+    T: Clone + Debug
+{
+    fn default() -> Self {
+        Self { terminal: None, child: HashMap::new() }
+    }
+}
+
+impl<T> NfaNode<T>
 where
     T: Clone + Debug,
 {
     fn new_terminal(t: T) -> Self {
-        Self { terminal: Some(t), child: HashMap::new() }
+        Self {
+            terminal: Some(t),
+            child: HashMap::new(),
+        }
     }
 
-    fn new_non_terminal() -> Self {
-        Self { terminal: None, child: HashMap::new() }
+    pub(crate) fn new_non_terminal() -> Self {
+        Self {
+            terminal: None,
+            child: HashMap::new(),
+        }
     }
 
-    fn add_child(&mut self, edge: NfaEdge, child: Rc<RefCell<Self>>) {
-        self.child.entry(edge).or_insert(Vec::new()).push(child);
+    pub(crate) fn add_child(&mut self, edge: NfaEdge, child: Rc<RefCell<Self>>) {
+        self.child.entry(edge).or_default().push(child);
+    }
+
+    pub(crate) fn add_edge_nul_target_node(&mut self, edge: NfaEdge) {
+        self.child.entry(edge).or_default();
+    }
+
+    pub fn set_terminal(&mut self, terminal: T) {
+        self.terminal = Some(terminal);
     }
 
     fn is_terminal(&self) -> bool {
@@ -74,30 +96,34 @@ where
     }
 
     fn _extract_child(&self, edge: NfaEdge) -> Option<&Vec<Rc<RefCell<Self>>>> {
-        self.child
-            .get(&edge)
-    }
-    
-    fn _extract_child_map<'a, B, F>(&'a self, edge: NfaEdge, f: F) 
-        -> Option<Map<std::slice::Iter<'a, Rc<RefCell<Self>>>, F>>
-        where
-            F: FnMut(&Rc<RefCell<Self>>) -> B,
-    {
-        self._extract_child(edge)
-            .map(|v| v.iter().map(f))
+        self.child.get(&edge)
     }
 
-    fn collect_terminal(&self, query: &Vec<char>, idx: usize) -> Vec<(T,usize)> {
+    fn _extract_child_map<B, F>(
+        &'_ self,
+        edge: NfaEdge,
+        f: F,
+    ) -> Option<Map<std::slice::Iter<'_, Rc<RefCell<Self>>>, F>>
+    where
+        F: FnMut(&Rc<RefCell<Self>>) -> B,
+    {
+        self._extract_child(edge).map(|v| v.iter().map(f))
+    }
+
+    pub fn collect_terminal(&self, query: &Vec<char>, idx: usize) -> Vec<(T, usize)> {
         let mut res = Vec::new();
 
         if self.is_terminal() {
             res.push((self.terminal.clone().unwrap(), idx));
         }
 
-        let epsilons = self._extract_child_map(NfaEdge::Epsilon, |rc_refcell_node| {
+        let epsilons = self
+            ._extract_child_map(NfaEdge::Epsilon, |rc_refcell_node| {
                 let node_refcell = &**rc_refcell_node;
                 node_refcell.borrow().collect_terminal(query, idx)
-        }).map(|v| v.flatten().collect::<Vec<_>>()).unwrap_or(vec![]);
+            })
+            .map(|v| v.flatten().collect::<Vec<_>>())
+            .unwrap_or_default();
         res.extend(epsilons);
 
         if idx == query.len() {
@@ -109,19 +135,15 @@ where
                 let node_refcell = &**rc_refcell_node;
                 node_refcell.borrow().collect_terminal(query, idx + 1)
             })
-            .map(|v| 
-                 v.flatten()
-                   .collect::<Vec<_>>()
-            )
-            .unwrap_or(vec![]);
+            .map(|v| v.flatten().collect::<Vec<_>>())
+            .unwrap_or_default();
         res.extend(non_epsilons);
 
         res
     }
 }
 
-
-// pub struct Nfa<T> 
+// pub struct Nfa<T>
 // where
 //     T: Debug + Clone
 // {
@@ -162,7 +184,9 @@ mod collect_node_test {
         let third = Rc::new(RefCell::new(NfaNode::new_non_terminal()));
         let tail = Rc::new(RefCell::new(NfaNode::new_terminal("Terminal".to_string())));
         (*third).borrow_mut().add_child(NfaEdge::Epsilon, tail);
-        (*second).borrow_mut().add_child(NfaEdge::new_char('a'), third);
+        (*second)
+            .borrow_mut()
+            .add_child(NfaEdge::new_char('a'), third);
         head.add_child(NfaEdge::Epsilon, second);
         collect_node_utils!(head, vec!['a'], vec![("Terminal".to_string(), 1)]);
     }
@@ -172,11 +196,16 @@ mod collect_node_test {
         let mut head = NfaNode::new_non_terminal();
         let second = Rc::new(RefCell::new(NfaNode::new_non_terminal()));
         let tail = Rc::new(RefCell::new(NfaNode::new_terminal("Terminal".to_string())));
-        (*second).borrow_mut().add_child(NfaEdge::Epsilon, Rc::clone(&tail));
+        (*second)
+            .borrow_mut()
+            .add_child(NfaEdge::Epsilon, Rc::clone(&tail));
         head.add_child(NfaEdge::new_char('a'), second);
         head.add_child(NfaEdge::Epsilon, tail);
-        collect_node_utils!(head, vec!['a'], 
-                            vec![("Terminal".to_string(), 0), ("Terminal".to_string(), 1)]);
+        collect_node_utils!(
+            head,
+            vec!['a'],
+            vec![("Terminal".to_string(), 0), ("Terminal".to_string(), 1)]
+        );
     }
 
     #[test]
@@ -188,24 +217,15 @@ mod collect_node_test {
         let terminal2 = Rc::new(RefCell::new(NfaNode::new_terminal("Terminal2")));
         head.add_child(NfaEdge::new_char('a'), Rc::clone(&second1));
         head.add_child(NfaEdge::new_char('a'), Rc::clone(&second2));
-        (*second1).borrow_mut().add_child(NfaEdge::new_epsilon(), terminal1);
-        (*second2).borrow_mut().add_child(NfaEdge::new_epsilon(), terminal2);
-        collect_node_utils!(head, vec!['a'], 
-                            vec![("Terminal1", 1), ("Terminal2", 1)]);
+        (*second1)
+            .borrow_mut()
+            .add_child(NfaEdge::new_epsilon(), terminal1);
+        (*second2)
+            .borrow_mut()
+            .add_child(NfaEdge::new_epsilon(), terminal2);
+        collect_node_utils!(head, vec!['a'], vec![("Terminal1", 1), ("Terminal2", 1)]);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 // use std::cmp::PartialEq;
 // use std::fmt::Debug;
